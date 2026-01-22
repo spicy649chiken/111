@@ -1,0 +1,53 @@
+name: GPA Monitor
+
+on:
+  schedule:
+    # 计划任务：北京时间 8:00 - 24:00，每1小时运行一次
+    # UTC时间 0-16
+    - cron: '0 0-16 * * *'
+  
+  # 允许手动点按钮触发 (方便测试)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  run_monitor:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code (拉取代码)
+      uses: actions/checkout@v3
+
+    - name: Set up Python (安装Python)
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies (安装依赖)
+      run: |
+        pip install -r requirements.txt
+
+    - name: Run Grade Script (运行脚本)
+      env:
+        # 将刚才配置的 Secrets 注入到环境变量
+        STU_ID: ${{ secrets.STU_ID }}
+        STU_PWD: ${{ secrets.STU_PWD }}
+        MAIL_USER: ${{ secrets.MAIL_USER }}
+        MAIL_PASS: ${{ secrets.MAIL_PASS }}
+        MAIL_RECEIVER: ${{ secrets.MAIL_RECEIVER }}
+        # 设置时区为北京时间，方便日志查看
+        TZ: Asia/Shanghai
+      run: python get_grades.py
+
+    - name: Save History (保存历史记录)
+      # 如果 grade_history.json 发生了变化，提交回仓库
+      # 这样下次运行才能和这次的数据做对比
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        # 强制添加这个文件（即使它原本在 .gitignore 里）
+        git add grade_history.json || true
+        # 如果有变化才提交
+        git diff --quiet && git diff --staged --quiet || (git commit -m "Update grade history [skip ci]" && git push)
