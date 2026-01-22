@@ -42,12 +42,23 @@ jobs:
       run: python get_grades.py
 
     - name: Save History (保存历史记录)
-      # 如果 grade_history.json 发生了变化，提交回仓库
-      # 这样下次运行才能和这次的数据做对比
+      # 只有当文件发生了变化，才执行后续的 Git 操作
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        # 强制添加这个文件（即使它原本在 .gitignore 里）
+        
+        # 强制添加文件（即使在 .gitignore 中也会被添加）
         git add grade_history.json || true
-        # 如果有变化才提交
-        git diff --quiet && git diff --staged --quiet || (git commit -m "Update grade history [skip ci]" && git push)
+        
+        # 检查是否有内容变更
+        if [ -n "$(git status --porcelain)" ]; then
+          git commit -m "Update grade history [skip ci]"
+          
+          # 关键修复：在 Push 之前拉取远程改动并进行变基（Rebase）
+          # 这能确保你的提交接在远程最新提交的后面，避免冲突
+          git pull --rebase origin main
+          
+          git push origin main
+        else
+          echo "No changes to commit, skipping push."
+        fi
